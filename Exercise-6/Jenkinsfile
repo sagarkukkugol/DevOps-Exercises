@@ -1,0 +1,24 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Start') {
+            steps {
+                echo 'Starting Exercise 6: Delivery Monitoring'
+            }
+        }
+
+        stage('Check Docker') {
+            steps {
+                sh 'docker --version'
+                sh 'docker ps'
+            }
+        }
+
+        stage('Check Monitoring') {
+            steps {
+                sh 'curl -f http://172.17.0.1:8000/metrics'
+            }
+        }
+    }
+}
