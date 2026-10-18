@@ -1,97 +1,101 @@
 # Exercise 6: Real-Time Operations Monitoring and Alerting
 
-## 1. Introduction
+## Objective
 
-In this exercise, a real-time operations monitoring and alerting system is developed for a delivery service. The system collects delivery-related metrics, monitors application performance, visualizes the collected data, and generates alerts when predefined conditions are met.
+To develop a real-time operations monitoring and alerting system for a delivery service using Python, Docker, Prometheus, Grafana, and Jenkins. The system collects delivery metrics, monitors application performance, visualizes the collected data, and generates alerts when predefined thresholds are exceeded.
 
-The project uses Python to generate delivery metrics, Docker to containerize the application, Prometheus to collect and evaluate metrics, Grafana to visualize monitoring data, and Jenkins to automate pipeline execution.
+## Technologies Used
 
-## 2. Objective
+- Python
+- Prometheus Client
+- Docker
+- Prometheus
+- Grafana
+- Jenkins
+- Git and GitHub
 
-The main objectives of this exercise are:
-
-- Develop a Python application that generates delivery metrics.
-- Containerize the application using Docker.
-- Collect application metrics using Prometheus.
-- Create a Grafana dashboard to visualize delivery metrics.
-- Configure Prometheus alert rules for delivery-related conditions.
-- Create a Jenkins pipeline to verify Docker and monitoring connectivity.
-- Store the project and Jenkins pipeline in GitHub.
-
-## 3. Technologies Used
-
-| Technology | Purpose |
-|---|---|
-| Python | Generate delivery metrics |
-| Prometheus Client | Expose application metrics |
-| Docker | Containerize the Python application |
-| Prometheus | Collect metrics and evaluate alert rules |
-| Grafana | Visualize monitoring metrics |
-| Jenkins | Execute the CI pipeline |
-| Git and GitHub | Version control and source code storage |
-
-## 4. Project Structure
+## Project Structure
 
 ```text
 Exercise-6/
-│
 ├── delivery_metrics.py
 ├── Dockerfile
 ├── .dockerignore
 ├── .gitignore
 ├── requirements.txt
 ├── Jenkinsfile
-├── README.md
-│
 └── prometheus/
     ├── prometheus.yml
     └── alert_rules.yml
 ```
 
-## 5. Implementation
+## Step 1: Create a Python Application for Delivery Metrics
 
-### Step 1: Develop the Delivery Metrics Application
+Create a Python application that simulates delivery activity and exposes metrics using the Prometheus Python client.
 
-A Python application named `delivery_metrics.py` is developed using the Prometheus Python client.
+File Name: `delivery_metrics.py`
 
-The application simulates delivery activity and exposes the following metrics:
+The application collects the following metrics:
 
-| Metric | Description |
-|---|---|
-| `total_deliveries` | Total number of deliveries |
-| `pending_deliveries` | Number of pending deliveries |
-| `on_the_way_deliveries` | Number of deliveries currently on the way |
-| `average_delivery_time` | Delivery time observations in seconds |
+- Total number of deliveries
+- Number of pending deliveries
+- Number of deliveries on the way
+- Average delivery time
 
-The application starts a metrics HTTP server on port 8000.
-
-Metrics can be accessed through:
+The metrics are exposed through an HTTP endpoint on port 8000.
 
 ```text
 http://localhost:8000/metrics
 ```
 
-### Step 2: Configure Python Dependencies
+This endpoint allows Prometheus to collect the delivery metrics at regular intervals.
 
-The `requirements.txt` file contains the Prometheus client dependency.
+## Step 2: Create the Requirements File
+
+Create a file named `requirements.txt` to specify the Python dependency.
+
+File Name: `requirements.txt`
 
 ```text
 prometheus-client
 ```
 
-The Python application is executed in a virtual environment during development.
+Install the dependency using:
 
-### Step 3: Containerize the Application
+```bash
+pip install -r requirements.txt
+```
 
-A Dockerfile is created to package the Python application and its dependencies into a Docker image.
+## Step 3: Create a Dockerfile for the Delivery Metrics Application
 
-The Docker image is built using:
+Create a Dockerfile to containerize the Python application and its dependencies.
+
+File Name: `Dockerfile`
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY delivery_metrics.py .
+
+EXPOSE 8000
+
+CMD ["python", "delivery_metrics.py"]
+```
+
+## Step 4: Build and Run the Docker Image
+
+Build the Docker image from the project directory.
 
 ```bash
 docker build -t delivery-metrics .
 ```
 
-The application container is started using:
+Run the delivery metrics application as a container.
 
 ```bash
 docker run -d \
@@ -100,19 +104,42 @@ docker run -d \
   delivery-metrics
 ```
 
-The container exposes port 8000 to make the application metrics accessible.
+Verify that the container is running:
 
-### Step 4: Configure Prometheus
-
-Prometheus is configured to scrape metrics from the delivery metrics application.
-
-The Prometheus configuration file is located at:
-
-```text
-prometheus/prometheus.yml
+```bash
+docker ps
 ```
 
-The configuration defines the scrape interval and the target application endpoint.
+Check whether the application is exposing metrics:
+
+```bash
+curl http://localhost:8000/metrics
+```
+
+The output should contain delivery metrics such as `total_deliveries`, `pending_deliveries`, and `average_delivery_time`.
+
+## Step 5: Configure Prometheus for Metrics Collection
+
+Create a Prometheus configuration file to collect metrics from the delivery metrics application.
+
+File Name: `prometheus/prometheus.yml`
+
+```yaml
+global:
+  scrape_interval: 5s
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+scrape_configs:
+  - job_name: 'delivery-metrics'
+    static_configs:
+      - targets: ['172.17.0.1:8000']
+```
+
+The scrape interval is set to 5 seconds, meaning Prometheus attempts to collect metrics every 5 seconds.
+
+The target address `172.17.0.1:8000` is the Docker host endpoint used in this Ubuntu setup. The target must be reachable from Prometheus.
 
 Prometheus is accessed through:
 
@@ -120,156 +147,190 @@ Prometheus is accessed through:
 http://localhost:9090
 ```
 
-The application target is verified through the Prometheus Targets page. The delivery metrics target should display an UP status when Prometheus can successfully collect metrics.
-
-### Step 5: Configure Alert Rules
-
-Prometheus alert rules are defined in:
+Check the Prometheus target status through:
 
 ```text
-prometheus/alert_rules.yml
+Status → Targets
 ```
 
-The project contains the following alerts:
+The delivery metrics target should display **UP** when collection is successful.
 
-#### HighPendingDeliveries
+## Step 6: Configure Prometheus Alert Rules
 
-This alert is triggered when the number of pending deliveries exceeds 10 for 15 seconds.
+Create alert rules to detect abnormal delivery operations.
 
-```promql
-pending_deliveries > 10
+File Name: `prometheus/alert_rules.yml`
+
+### Alert 1: High Pending Deliveries
+
+This alert is triggered when pending deliveries exceed 10 for 15 seconds.
+
+```yaml
+- alert: HighPendingDeliveries
+  expr: pending_deliveries > 10
+  for: 15s
+  labels:
+    severity: warning
+  annotations:
+    summary: High number of pending deliveries
+    description: Pending deliveries have exceeded 10 for 15 seconds.
 ```
 
-Severity: Warning
-
-#### HighAverageDeliveryTime
+### Alert 2: High Average Delivery Time
 
 This alert is triggered when the average delivery time exceeds 30 seconds for 15 seconds.
 
-```promql
-average_delivery_time_sum / average_delivery_time_count > 30
+```yaml
+- alert: HighAverageDeliveryTime
+  expr: average_delivery_time_sum / average_delivery_time_count > 30
+  for: 15s
+  labels:
+    severity: critical
+  annotations:
+    summary: High average delivery time
+    description: Average delivery time has exceeded 30 seconds for 15 seconds.
 ```
 
-Severity: Critical
+The alerts help identify delivery delays and high pending delivery counts.
 
-The alert rules are validated using Prometheus rule validation tools.
+## Step 7: Create a Grafana Dashboard
 
-### Step 6: Configure Grafana
+Grafana is used to visualize the metrics collected by Prometheus.
 
-Grafana is used to visualize the delivery metrics collected by Prometheus.
-
-Grafana is accessed through:
+Access Grafana through:
 
 ```text
 http://localhost:3000
 ```
 
-The Prometheus data source is configured to connect to the Prometheus server.
+Configure Prometheus as the data source and create a dashboard named:
 
-A dashboard named **Delivery Monitoring** is created to monitor the delivery metrics.
+**Delivery Monitoring**
 
-The dashboard helps observe:
+The dashboard can display:
 
 - Total deliveries
 - Pending deliveries
 - Deliveries on the way
 - Average delivery time
 
-### Step 7: Configure Jenkins
+The dashboard provides a visual overview of delivery operations and helps identify changes in delivery activity.
 
-Jenkins is used to execute the delivery monitoring verification pipeline.
+## Step 8: Configure Jenkins for Pipeline Execution
 
-The Jenkins installation is configured with Docker CLI and access to the Docker engine running on the Ubuntu host.
+Jenkins is configured to execute a pipeline that checks Docker and monitoring connectivity.
 
-The Jenkins pipeline is stored in:
+File Name: `Jenkinsfile`
 
-```text
-Exercise-6/Jenkinsfile
+```groovy
+pipeline {
+    agent any
+
+    stages {
+        stage('Start') {
+            steps {
+                echo 'Starting Exercise 6: Delivery Monitoring'
+            }
+        }
+
+        stage('Check Docker') {
+            steps {
+                sh 'docker --version'
+                sh 'docker ps'
+            }
+        }
+
+        stage('Check Monitoring') {
+            steps {
+                sh 'curl -f http://172.17.0.1:8000/metrics'
+            }
+        }
+    }
+}
 ```
 
-The pipeline contains the following stages:
+The pipeline contains three stages:
 
-1. **Start** – Displays the start message for the monitoring pipeline.
-2. **Check Docker** – Verifies Docker availability and lists running containers.
-3. **Check Monitoring** – Requests the delivery metrics endpoint and verifies that it responds successfully.
+1. **Start:** Displays the pipeline start message.
+2. **Check Docker:** Verifies Docker availability and lists running containers.
+3. **Check Monitoring:** Requests the delivery metrics endpoint and checks whether it responds successfully.
 
-The pipeline is configured to retrieve its script from the GitHub repository.
+Jenkins retrieves the pipeline script from the GitHub repository.
 
-### Step 8: GitHub Integration
+## Step 9: Configure GitHub Integration
 
-The project is stored in the following repository:
+The project is stored in the following GitHub repository:
 
 [DevOps-Exercises](https://github.com/sagarkukkugol/DevOps-Exercises)
 
-The Jenkins pipeline is configured with:
+Jenkins is configured with:
 
-- Repository: `https://github.com/sagarkukkugol/DevOps-Exercises.git`
+- Repository URL: `https://github.com/sagarkukkugol/DevOps-Exercises.git`
 - Branch: `main`
 - Script Path: `Exercise-6/Jenkinsfile`
 
-Jenkins retrieves the pipeline script from GitHub and executes the defined stages.
+Jenkins checks out the repository and executes the pipeline defined in the Jenkinsfile.
 
-## 6. System Architecture
+## Step 10: Verify the Complete Monitoring System
 
-```text
-                 Delivery Metrics Application
-                          |
-                          v
-                    Python Client
-                          |
-                          v
-                  Docker Container
-                          |
-                          v
-                  Metrics Endpoint
-                    Port 8000
-                          |
-                          v
-                     Prometheus
-                    Port 9090
-                     /      \
-                    v        v
-              Alert Rules  Grafana
-                           Port 3000
-                              |
-                              v
-                    Delivery Monitoring
-                         Dashboard
+The following commands and interfaces are used to verify the system.
 
+### Verify Docker Containers
 
-                     Jenkins Pipeline
-                            |
-                            v
-                    GitHub Repository
-                            |
-                            v
-                 Docker and Metrics Checks
+```bash
+docker ps
 ```
 
-## 7. Verification and Results
+Confirm that the delivery metrics application, Prometheus, Grafana, and Jenkins containers are running.
 
-The following results were verified during execution:
+### Verify Application Metrics
 
-- The Python delivery metrics application successfully exposed metrics.
-- The Docker container for the delivery metrics application was running.
-- Prometheus successfully collected metrics from the application.
-- The Prometheus delivery metrics target was verified as UP.
-- Both delivery alert rules were verified in the FIRING state during testing.
-- Grafana was running and the Delivery Monitoring dashboard was created.
-- Jenkins successfully accessed the Docker engine.
-- Jenkins retrieved `Exercise-6/Jenkinsfile` from GitHub.
-- All three Jenkins pipeline stages completed successfully.
+```bash
+curl http://localhost:8000/metrics
+```
 
-The final Jenkins pipeline result was:
+Confirm that delivery metrics are available.
+
+### Verify Prometheus
+
+Open:
+
+```text
+http://localhost:9090
+```
+
+Confirm that the delivery metrics target is UP and that the alert rules are loaded.
+
+### Verify Grafana
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+Confirm that the Delivery Monitoring dashboard is available.
+
+### Verify Jenkins
+
+Open:
+
+```text
+http://localhost:8080
+```
+
+Run the pipeline and check the Console Output.
+
+The pipeline should finish with:
 
 ```text
 Finished: SUCCESS
 ```
 
-## 8. Conclusion
+## Result
 
-The Real-Time Operations Monitoring and Alerting exercise was successfully implemented using Python, Docker, Prometheus, Grafana, Jenkins, and GitHub.
+The real-time operations monitoring and alerting system was successfully implemented.
 
-The project demonstrates application metrics collection, containerized monitoring, dashboard visualization, threshold-based alerting, and CI pipeline verification.
+The Python application generates delivery metrics, Docker runs the application, Prometheus collects and evaluates the metrics, Grafana visualizes the monitoring data, and Jenkins verifies Docker and monitoring connectivity through a pipeline.
 
-The completed system provides a foundation for observing delivery operations and identifying situations such as high pending deliveries and increased average delivery time.
+The project demonstrates real-time application monitoring, threshold-based alerting, containerization, and CI pipeline execution.
